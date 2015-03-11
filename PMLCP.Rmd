@@ -1,0 +1,98 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Michael Atkins"
+date: "March 10, 2015"
+output: html_document
+---
+
+EXECUTIVE SUMMARY
+
+In this analysis, I undertook the creation of a machine learning model using the caret package to attempt to predict the manner, or 'classe' (factor variable with 5 levels) that an individual performed an exercise based on the data from http://groupware.les.inf.puc-rio.br/har. I performed some basic exploratory analysis as noted in the appendix and noted that there were a significant number of columns comprised of primarily "NA" values. I reasoned that these columns contained so little information, that removing them was the best course of action. I further removed the "X" column as this was merely the number of the applicable row. I trained a model and tested the model noting it was highly accurate (>99%), and then further determined that the out of sample error was minimal (<1%), which is what was anticipated. Finally, I applied the model to the test data to produce the solutions for the submission component of the course project.
+
+LOADING AND TRANSFORMING DATA
+```{r,load packages and set seed, cache=TRUE, warning=FALSE}
+require(caret); require(randomForest) ## require analysis dependencies
+set.seed(3000) ## set seed
+```
+
+```{r, download data, eval=FALSE}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "df.csv") ## download training data
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "test.csv") ## download testing data
+```
+
+```{r, read data, eval=FALSE}
+df <- read.csv("df.csv", stringsAsFactors=FALSE) ## read training data
+test  <- read.csv("test.csv") ## read testing data
+```
+
+Classe was transformed into a factor vaiable. Columns comprised of a majority of NA values were removed. X column was removed as it denoted the row of data and affected the machine learning algorithm.
+
+```{r,transform data, eval=FALSE}
+a <- as.factor(df$classe) ## retain classe column as factor variable "a"
+df1 <- df[, !sapply(df, is.character)] ## remove character columns from training data
+df1 <- df1[ , apply(df1, 2, function(x) !any(is.na(x)))] ## remove all columns with NAs
+df1 <- df1[,-1] ## remove "x" column
+df1$classe <- a; rm(a) ## add classe column back to training data
+```
+
+REVIEWING FOR NEAR ZERO VARIANCE PREDICTORS
+
+No near zero variance predictors were noted, so I attempted to train the data using all of the variables (55 variables excluding classe) left after the above data transformation.
+
+```{r, calculate near zero variance predictors, cache=TRUE}
+nearZeroVar(df1, saveMetrics=TRUE) ## identify any near zero variance predictors
+```
+
+CREATING TRANING AND TESTING PARTITIONS
+
+I partitioned the data 60%/40% for training and testing.  
+
+```{r, create partition, eval=FALSE}
+training <- createDataPartition(df1$classe, p=.60,list=FALSE);testing <- df1[-training,]; training <- df1[training,]## create training and testing data partition using 60% of data for training
+```
+
+CREATING THE MODEL
+
+I created the model using the caret package with repeated cross-validation (3 repeats) and 10-folds. The processing of the data took approximately 45 minutes overall given the large size of the training data set created above (11,776 observations of 56 variables).
+
+```{r, create train model option, eval=FALSE}
+tc <- trainControl(method="repeatedcv", repeats=3) ## set trainControl variable for cross-validation
+```
+
+```{r, train model, eval=FALSE}
+model <- train(classe~., trControl=tc, data=training) ## train model with cross-validation (10-fold with 3 repeats)
+```
+
+REVIEWING THE MODEL
+
+The model was shown to be highly accurate, with an accuracy on the entire data set of 99.94%
+
+```{r, review model, cache=TRUE}
+model$finalModel ## show model stats including error rate
+confusionMatrix(predict(model, newdata=df1), df1$classe) ## create prediction and call confusion matrix
+```
+
+OUT OF SAMPLE ERROR RATE
+
+To review the out of sample error rate, I generated two confusion matrixes, one for each of the training/testing data sets created with the above partion. I noted a 99.97% accuracy rate for the training data set versus a 99.86% accuracy rate for the testing data set, for an out of sample error rate of 0.11%, which is minimal.
+
+```{r, review out of sample error}
+confusionMatrix(predict(model, newdata=training), training$classe) ## call accuracy for training model
+confusionMatrix(predict(model, newdata=testing), testing$classe) ## call accuracy for testing model
+```
+
+GENERATING SUBMISSION ANSWERS
+
+I used the predict function in the stats package taking the model object generated using the caret package and applying to the Coursera test data to generate a list of answers for each of the 1-20 submission questions.
+
+```{r, generate submission answers}
+predict(model, newdata=test) ## generate submission answers
+```
+
+APPENDIX
+
+Initial exploratory data analysis where I determined that the NA fields should be excluded.
+
+```{r, explore data}
+str(df) ## explore data
+```
